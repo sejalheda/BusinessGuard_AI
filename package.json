@@ -1,0 +1,13 @@
+{
+  "name": "businessguard-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Your business's first responder - Hackathon Project",
+  "scripts": {
+    "frontend:dev": "cd frontend && npm run dev",
+    "frontend:build": "cd frontend && npm run build",
+    "backend:dev": ".\\.venv\\Scripts\\python -m uvicorn backend.app.main:app --port 8000 --reload",
+    "mcp:dev": ".\\.venv\\Scripts\\python -m uvicorn mcp_server.server:mcp_app --port 8001 --reload",
+    "test:e2e": ".\\.venv\\Scripts\\python test_e2e.py"
+  }
+}
