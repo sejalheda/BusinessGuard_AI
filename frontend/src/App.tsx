@@ -15,11 +15,50 @@ import { AuditPage } from './pages/AuditPage';
 import { ProtectionScorePage } from './pages/ProtectionScorePage';
 import { CasesPage } from './pages/CasesPage';
 import { McpToolsPage } from './pages/McpToolsPage';
+import { PaymentCheckerPage } from './pages/PaymentCheckerPage';
 
 export const AppContent: React.FC = () => {
-  const { currentTab, isEmergencyActive } = useApp();
+  const { currentTab, setCurrentTab, activeCaseId, setActiveCaseId, isEmergencyActive } = useApp();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mcpInspectorOpen, setMcpInspectorOpen] = useState(false);
+
+  // Deep linking and direct route handler for /cases/:id and ?case=:id
+  React.useEffect(() => {
+    const handleUrlRoute = () => {
+      const pathname = window.location.pathname;
+      const searchParams = new URLSearchParams(window.location.search);
+      const queryCase = searchParams.get('case');
+
+      if (pathname.startsWith('/cases/')) {
+        const id = pathname.replace('/cases/', '').split('/')[0].trim();
+        if (id) {
+          setActiveCaseId(id.toUpperCase());
+          setCurrentTab('cases');
+          return;
+        }
+      } else if (queryCase) {
+        setActiveCaseId(queryCase.toUpperCase());
+        setCurrentTab('cases');
+        return;
+      }
+    };
+
+    handleUrlRoute();
+    window.addEventListener('popstate', handleUrlRoute);
+    return () => window.removeEventListener('popstate', handleUrlRoute);
+  }, [setActiveCaseId, setCurrentTab]);
+
+  // Keep URL updated when activeCaseId changes
+  React.useEffect(() => {
+    if (activeCaseId && currentTab === 'cases') {
+      const targetPath = `/cases/${activeCaseId}`;
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState(null, '', targetPath);
+      }
+    } else if (!activeCaseId && window.location.pathname.startsWith('/cases/')) {
+      window.history.pushState(null, '', '/');
+    }
+  }, [activeCaseId, currentTab]);
 
   const renderActivePage = () => {
     switch (currentTab) {
@@ -37,6 +76,8 @@ export const AppContent: React.FC = () => {
         return <ProtectionScorePage />;
       case 'cases':
         return <CasesPage />;
+      case 'payment':
+        return <PaymentCheckerPage />;
       case 'mcp':
         return <McpToolsPage />;
       default:

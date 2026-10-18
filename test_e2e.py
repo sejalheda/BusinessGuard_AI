@@ -99,8 +99,32 @@ def test():
             safe_title = title.encode('ascii', errors='replace').decode('ascii')
             print(f"     - {cid}: {safe_title} ({sev}, {src})")
 
+    print("\n8. Testing Fake Payment Screenshot Checker (POST /payment-check)...")
+    pay_payload = json.dumps({'image_b64': 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='}).encode('utf-8')
+    req_pay = urllib.request.Request(f"{base}/payment-check", data=pay_payload, headers={'Content-Type': 'application/json'})
+    with urllib.request.urlopen(req_pay) as r:
+        pay_res = json.loads(r.read())
+        assert pay_res['risk_level'] in ['High Risk', 'Medium Risk', 'Low Risk']
+        assert len(pay_res['warning_signs']) > 0
+        assert len(pay_res['bank_checklist']) > 0
+        print("   Risk level:", pay_res['risk_level'], f"({pay_res['risk_score']}%)")
+        print("   Warning signs:", len(pay_res['warning_signs']))
+        print("   Reasoning checks in payment checker:", len(pay_res.get('reasoning', [])))
+
+    print(f"\n9. Testing Recovery Milestone Tick on {created_case}...")
+    tick_payload = json.dumps({
+        'completed_steps': ['Search primary email for security alert and revert this change'],
+        'turns': [{'role': 'assistant', 'content': '[Recovery Milestone Update] Step marked COMPLETED ✓ (+2 Protection Score)', 'source': 'timeline_tick'}]
+    }).encode('utf-8')
+    req_tick = urllib.request.Request(f"{base}/api/cases/{created_case}", data=tick_payload, headers={'Content-Type': 'application/json'}, method='PATCH')
+    with urllib.request.urlopen(req_tick) as r:
+        tick_res = json.loads(r.read())
+        assert 'Search primary email for security alert and revert this change' in tick_res.get('completed_steps', [])
+        print("   Completed steps updated in SQLite:", tick_res.get('completed_steps'))
+        print("   Reasoning persisted in Case:", len(tick_res.get('reasoning', [])))
+
     print("\n==========================================")
-    print("ALL END-TO-END VERIFICATION CHECKS PASSED!")
+    print("ALL TIER 1 & TIER 2 VERIFICATION CHECKS PASSED!")
     print("==========================================")
 
 if __name__ == '__main__':

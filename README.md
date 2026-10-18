@@ -33,6 +33,7 @@ flowchart TD
         AlexaSim["Alexa+ Voice Simulator (Web Speech API)"]
         WebConsole["Web Incident Console (Emergency Mode & Ledger)"]
         AuditUI["12-Point Health Audit & Protection Score"]
+        PayCheck["Fake Payment Screenshot Checker"]
     end
     
     subgraph BackendLayer["Backend Server (FastAPI on :8000)"]
@@ -42,12 +43,12 @@ flowchart TD
     end
     
     subgraph ProviderLayer["LLM Provider Abstraction"]
-        MockP["Mock Provider (Scripted, Realistic, Keyless - DEFAULT)"]
-        GeminiP["Google Gemini API (Function Calling)"]
-        BedrockP["Amazon Bedrock Converse API"]
+        MockP["Mock Provider (Scripted, Realistic, Keyless - DEFAULT DEMO)"]
+        GeminiP["Google Gemini API (Optional Function Calling)"]
+        BedrockP["Amazon Bedrock (Optional - Not used in demo)"]
     end
     
-    subgraph MCPLayer["Self-Hosted MCP Server (:8001 / Streamable HTTP)"]
+    subgraph MCPLayer["Self-Hosted MCP Server (:8001 / In-Process Tools)"]
         MCP["Model Context Protocol Official Python SDK"]
         T1["create_case()"]
         T2["get_case()"]
@@ -55,6 +56,7 @@ flowchart TD
         T4["analyze_incident()"]
         T5["generate_recovery_plan()"]
         T6["score_business()"]
+        T7["check_payment_screenshot()"]
     end
     
     subgraph StorageLayer["Local Storage"]
@@ -64,23 +66,24 @@ flowchart TD
     User --> AlexaSim
     User --> WebConsole
     User --> AuditUI
+    User --> PayCheck
     
     AlexaSim -->|POST /api/alexa/interact| API
     WebConsole -->|POST /api/chat & /api/emergency| API
     AuditUI -->|POST /api/audit| API
+    PayCheck -->|POST /payment-check| API
     
     API --> Cache
     Cache --> AgentLoop
     AgentLoop --> MockP
-    AgentLoop -.-> GeminiP
-    AgentLoop -.-> BedrockP
+    AgentLoop -.->|If configured| GeminiP
+    AgentLoop -.->|Optional| BedrockP
     
     MockP -->|Tool Calls| MCP
-    GeminiP -->|Function Calls| MCP
-    BedrockP -->|ToolConfig| MCP
+    GeminiP -->|Function Declarations| MCP
     
-    MCP --> T1 & T2 & T3 & T4 & T5 & T6
-    T1 & T2 & T3 & T4 & T5 & T6 <--> DB
+    MCP --> T1 & T2 & T3 & T4 & T5 & T6 & T7
+    T1 & T2 & T3 & T4 & T5 & T6 & T7 <--> DB
 ```
 
 ---
@@ -91,7 +94,7 @@ Everything runs locally for free without requiring paid subscriptions or externa
 
 ```bash
 # 1. Clone repository & navigate
-git clone https://github.com/your-org/businessguard-ai.git && cd businessguard-ai
+git clone https://github.com/sejalheda/BusinessGuard_AI.git && cd BusinessGuard_AI
 
 # 2. Set up Python virtual environment & install backend packages
 python -m venv .venv && .\.venv\Scripts\activate && pip install -r requirements.txt
@@ -102,8 +105,8 @@ cd frontend && npm install && cd ..
 # 4. Copy environment configuration (Default: LLM_PROVIDER=mock)
 cp .env.example .env
 
-# 5. Start the full application (Run Backend & Frontend)
-# Terminal 1: Backend & MCP Server
+# 5. Start the full application (Run Backend & Frontend in separate terminals)
+# Terminal 1: Backend Server
 .\.venv\Scripts\python -m uvicorn backend.app.main:app --port 8000 --reload
 # Terminal 2: Frontend Web App
 cd frontend && npm run dev
@@ -113,7 +116,7 @@ Open **http://localhost:5173** in your browser.
 
 ---
 
-## 🤖 AI Layer & Provider Abstraction
+## 🤖 How AI is Used & Provider Abstraction
 
 The backend implements a clean provider abstraction interface in `backend/app/llm/base.py`:
 ```python
@@ -121,15 +124,15 @@ async def chat(messages: list[dict], tools: list[dict], system_prompt: str) -> L
 ```
 
 Three selectable providers are implemented via `LLM_PROVIDER`:
-1. **`mock` (Default used in demo):** Fully scripted, realistic, intelligent responses tailored to Indian & global social sellers. Simulates tool execution, generates structured output cards, and requires **no external API keys or paid accounts**.
-2. **`gemini`:** Powered by Google's Gemini models using `GEMINI_API_KEY`, supporting native function declarations matching the MCP tool schemas.
-3. **`bedrock`:** Present in the codebase using Amazon Bedrock Converse API (`boto3`) with `AWS_REGION` and `BEDROCK_MODEL_ID`. Only activated when explicitly configured with AWS credentials.
+1. **`mock` (Default used in demo — 100% Free & Keyless):** Fully scripted, realistic, and intelligent responses tailored specifically to social sellers. Simulates MCP tool execution, generates structured output cards, and requires **no external API keys or paid services**.
+2. **`gemini` (Optional):** Powered by Google's Gemini models using `GEMINI_API_KEY`. It supports native function calling matching our MCP tool schemas, as well as vision-based visual warning sign inspection in the Fake Payment Screenshot Checker.
+3. **`bedrock` (Optional — Not used in demo):** Present in the codebase as an optional integration using Amazon Bedrock Converse API (`boto3`). It is optional, unconfigured by default, and not used in the demo.
 
 ### Automatic Graceful Fallback
-If `gemini` or `bedrock` is chosen but fails due to a missing API key, network timeout, or free-tier rate limit, the system **automatically falls back to `mock`** and displays a discreet `"Using demo responses"` badge in the UI. **Raw exceptions are never exposed to the user.**
+If `gemini` is selected but fails due to a missing API key, network timeout, or free-tier rate limit, the system **automatically falls back to `mock`** and displays a discreet `"Using demo responses"` badge in the UI. **Raw exceptions or API failures are never exposed to the merchant.**
 
 ### 10-Minute Free-Tier Rate Limiting Cache
-Identical requests are cached in-memory with a 10-minute TTL to stay well within free-tier API quotas.
+Identical requests are cached in-memory with a 10-minute TTL to stay comfortably inside free-tier rate limits.
 
 ---
 
@@ -138,17 +141,19 @@ Identical requests are cached in-memory with a 10-minute TTL to stay well within
 BusinessGuard hosts a dedicated Model Context Protocol server built with the official `mcp` Python SDK:
 - **`create_case(incident_type, details)`**: Initializes a new incident in SQLite and returns incrementing Case ID (`BG-2026-XXX`).
 - **`get_case(case_id)`**: Retrieves full case timeline, severity, and answers.
-- **`update_case(case_id, patch)`**: Updates status (`open`, `in_progress`, `resolved`), turns, or recovery plans.
-- **`analyze_incident(case_id)`**: Assesses threat vectors, urgency, and affected platforms.
-- **`generate_recovery_plan(incident_type, severity)`**: Emits immediate actions (0-60m), a 24-hour plan, evidence checklist for cyber authorities, and future hardening tips.
+- **`update_case(case_id, patch)`**: Updates status (`open`, `in_progress`, `resolved`), turns, completed recovery steps, or recovery plans.
+- **`analyze_incident(case_id)`**: Assesses threat vectors, urgency, affected platforms, and visible reasoning checks.
+- **`generate_recovery_plan(incident_type, severity)`**: Emits 3-phase timeline (`first_hour`, `first_24h`, `first_week`), immediate actions, 24-hour containment, cyber cell evidence checklist, and hardening tips.
+- **`check_payment_screenshot(image_b64, filename)`**: Analyzes payment proof screenshots for typography artifacts, clock/timestamp disparities, and bank ledger absence.
 - **`score_business(audit_answers)`**: Evaluates 12 health audit responses across Legal, Security, Operations, and Brand hygiene.
 
 You can inspect all tool definitions and execute live tests at the `/mcp/tools` UI page or `http://localhost:8000/mcp/tools`.
 
 ---
 
-## 🌟 Key Features
+## 🌟 Key Features & Capabilities
 
+### Tier 1 Core Capabilities
 1. **Alexa to Web Case Handoff (Signature Feature):**
    - Glowing cyan-blue Echo ring with realistic `idle`, `listening`, `thinking`, and `speaking` states.
    - User speaks or types: *"Alexa, ask BusinessGuard, my Instagram was hacked."* Wake phrase is stripped before processing.
@@ -165,7 +170,31 @@ You can inspect all tool definitions and execute live tests at the `/mcp/tools` 
    - Large overall resilience score (e.g. 68/100).
    - 6-week trend line chart (*labeled Sample data*) and Top 3 fixes that raise the score the most.
 6. **Case Ledger:**
-   - Searchable, filterable ledger seeded with 4 realistic cases (`BG-2026-001` through `BG-2026-004`) plus live cases created during voice sessions.
+   - Searchable, filterable ledger seeded with realistic cases (`BG-2026-001` through `BG-2026-005`) plus live cases created during voice sessions.
+
+### Tier 2 Extended Capabilities
+1. **Visible Reasoning Panel ("Why this verdict"):**
+   - Collapsible panel on Case Detail, Advisor answer cards, and Emergency results.
+   - Lists the specific checks the agent ran and the concrete evidence behind the severity verdict.
+   - Each check displays a confidence chip (Low, Medium, High) and the underlying MCP tool that generated it, appearing with a smooth staggered animation.
+   - Persisted in SQLite with the case so reasoning is preserved across reloads.
+2. **Fake Payment Screenshot Checker:**
+   - Dedicated page with drag-and-drop file upload for PNG or JPG receipts up to 5 MB with instant preview.
+   - Powered by Gemini vision analysis with automatic fallback to scripted heuristic analysis.
+   - Displays a dynamic risk meter (High, Medium, Low), detailed visual warning signs (font anomalies, timestamp mismatches, missing bank ledger records), and a 4-point bank verification checklist.
+   - One-click **"Create a case from this"** button immediately registers a Fake Payment Fraud incident with attached findings.
+   - Uploaded screenshots are processed strictly in-memory and never stored permanently on disk.
+3. **Risk Radar:**
+   - Home page defense widget with 4 real-time exposure rows: **Cyber**, **Fraud**, **Legal**, and **Brand**.
+   - Dynamically derived from the merchant's latest Health Audit answers and open incident cases (e.g., an open hacked account case raises Cyber to High; missing trademark raises Brand).
+   - Shows clear Low, Medium, or High status chips with animated progress bars, and each row is clickable to display a plain-English explanation.
+4. **3-Phase Recovery Timeline with Interactive Ticks:**
+   - Every emergency case presents a structured 3-phase roadmap: **First hour (0-60m)**, **First 24 hours**, and **First week**.
+   - Merchants tick completed steps as they recover; ticking animates the circular progress ring, logs a timestamped turn in the case ledger, and triggers a floating **+2 Protection Score** boost that immediately reflects on dashboard gauges.
+   - Reaching 100% completion reveals a celebratory banner and enables one-click case resolution.
+5. **QR Code Handoff & Direct URL Routing:**
+   - On Alexa case creation, renders a large 160x160 px QR code (`qrcode.react`) and a one-click **"Copy link"** button with visual confirmation.
+   - Direct URLs formatted as `/cases/:id` (e.g. `http://localhost:5173/cases/BG-2026-005`) work seamlessly on first load or refresh, displaying the **"Continued from Alexa"** verification banner.
 
 ---
 

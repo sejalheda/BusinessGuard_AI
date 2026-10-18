@@ -1,4 +1,4 @@
-import { CaseItem, ChatMessage, AuditAnswers, AuditResult, McpTool } from '../types';
+import { CaseItem, ChatMessage, AuditAnswers, AuditResult, McpTool, ReasoningCheck, RecoveryPlan } from '../types';
 
 const BASE_URL = ''; // Proxied via vite to http://127.0.0.1:8000
 
@@ -125,6 +125,8 @@ export async function triggerEmergency(payload: {
   plan_24h: string[];
   evidence_checklist: string[];
   prevention_tips: string[];
+  reasoning?: ReasoningCheck[];
+  recovery_plan?: RecoveryPlan;
 }> {
   const res = await fetch('/api/emergency', {
     method: 'POST',
@@ -139,6 +141,27 @@ export async function fetchMcpTools(): Promise<{ tools: McpTool[] }> {
   const res = await fetch('/api/mcp/tools');
   if (!res.ok) throw new Error('Failed to fetch MCP tools');
   return res.json();
+}
+
+export async function checkPaymentScreenshot(file?: File, base64Str?: string): Promise<any> {
+  if (file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch('/api/payment-check', {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) throw new Error('Payment check request failed');
+    return res.json();
+  } else {
+    const res = await fetch('/api/payment-check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_b64: base64Str || '' }),
+    });
+    if (!res.ok) throw new Error('Payment check request failed');
+    return res.json();
+  }
 }
 
 export async function executeMcpTool(name: string, args: Record<string, any>): Promise<any> {

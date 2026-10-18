@@ -1,6 +1,7 @@
 import React from 'react';
 import { AlertTriangle, ShieldCheck, CheckCircle2, Lightbulb, ArrowRight } from 'lucide-react';
 import { StructuredCard as StructuredCardType } from '../types';
+import { ReasoningPanel } from './ReasoningPanel';
 
 interface StructuredCardProps {
   card: StructuredCardType;
@@ -91,6 +92,11 @@ export const StructuredCard: React.FC<StructuredCardProps> = ({ card, onOpenReco
             ))}
           </ul>
         </div>
+      )}
+
+      {/* Reasoning Panel */}
+      {card.reasoning && card.reasoning.length > 0 && (
+        <ReasoningPanel reasoning={card.reasoning} defaultExpanded={false} />
       )}
 
       {onOpenRecoveryPlan && (

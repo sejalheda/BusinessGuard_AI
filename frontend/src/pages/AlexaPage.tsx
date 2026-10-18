@@ -11,7 +11,10 @@ import {
   AlertOctagon,
   Sparkles,
   ArrowRight,
+  Copy,
+  Check,
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { AlexaEchoRing, EchoState } from '../components/AlexaEchoRing';
 import { McpToolsPanel } from '../components/McpToolsPanel';
 import { alexaInteract } from '../services/api';
@@ -40,6 +43,7 @@ export const AlexaPage: React.FC = () => {
   const [rawToolCalls, setRawToolCalls] = useState<any[]>([]);
   const [isMcpPanelOpen, setIsMcpPanelOpen] = useState<boolean>(false);
   const [errorStatus, setErrorStatus] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState<boolean>(false);
 
   const recognitionRef = useRef<any>(null);
 
@@ -329,6 +333,62 @@ export const AlexaPage: React.FC = () => {
                 >
                   <span>Continue on Web App</span>
                   <ExternalLink className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* QR Code Handoff Card */}
+              <div className="mt-4 p-5 rounded-2xl bg-white dark:bg-navy-950 border border-slate-200 dark:border-white/10 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
+                <div className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-5 text-center sm:text-left">
+                  <div className="p-3 bg-white rounded-2xl border-2 border-slate-200 shadow-md flex-shrink-0">
+                    <QRCodeSVG
+                      value={`${window.location.origin}/cases/${createdCaseId}`}
+                      size={160}
+                      level="H"
+                      includeMargin={true}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-extrabold uppercase tracking-widest text-cyan-600 dark:text-cyan-400 block">
+                      QR Code Handoff
+                    </span>
+                    <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">
+                      Scan to continue on your phone
+                    </h4>
+                    <p className="text-xs text-slate-500 max-w-xs">
+                      Open camera on your smartphone to instantly resume this case without typing your Case ID.
+                    </p>
+                    <p className="text-[11px] text-blue-600 dark:text-cyan-400 font-mono font-semibold pt-1">
+                      {window.location.origin}/cases/{createdCaseId}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = `${window.location.origin}/cases/${createdCaseId}`;
+                    navigator.clipboard.writeText(url);
+                    setCopiedLink(true);
+                    setTimeout(() => setCopiedLink(false), 2000);
+                  }}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 flex-shrink-0 shadow-sm ${
+                    copiedLink
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-100 hover:bg-slate-200 dark:bg-navy-900 dark:hover:bg-navy-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-white/10'
+                  }`}
+                >
+                  {copiedLink ? (
+                    <>
+                      <Check className="w-4 h-4 stroke-[3]" />
+                      <span>Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      <span>Copy link</span>
+                    </>
+                  )}
                 </button>
               </div>
 

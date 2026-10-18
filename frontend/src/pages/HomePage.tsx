@@ -16,14 +16,17 @@ import { useApp } from '../context/AppContext';
 import { fetchCases, fetchLatestAudit } from '../services/api';
 import { CaseItem, AuditResult } from '../types';
 import { ScoreGauge } from '../components/ScoreGauge';
+import { RiskRadarWidget } from '../components/RiskRadarWidget';
 
 export const HomePage: React.FC = () => {
-  const { setCurrentTab, setActiveCaseId, startDemo } = useApp();
+  const { setCurrentTab, setActiveCaseId, startDemo, scoreBonus } = useApp();
+  const [allCases, setAllCases] = useState<CaseItem[]>([]);
   const [recentCases, setRecentCases] = useState<CaseItem[]>([]);
   const [auditScore, setAuditScore] = useState<AuditResult | null>(null);
 
   useEffect(() => {
     fetchCases().then((res) => {
+      setAllCases(res.cases);
       setRecentCases(res.cases.slice(0, 3));
     }).catch(() => {});
 
@@ -34,6 +37,8 @@ export const HomePage: React.FC = () => {
 
   return (
     <div className="space-y-10 pb-12">
+      {/* Risk Radar Widget */}
+      <RiskRadarWidget auditData={auditScore} cases={allCases} />
       {/* Hero Section */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-navy-900 via-navy-800 to-blue-950 text-white p-8 sm:p-12 border border-blue-500/20 shadow-2xl">
         {/* Decorative background glow */}
@@ -200,7 +205,7 @@ export const HomePage: React.FC = () => {
             </div>
 
             <ScoreGauge
-              score={auditScore?.overall_score || 68}
+              score={Math.min(99, (auditScore?.overall_score || 68) + scoreBonus)}
               label="Overall Resilience"
               subtitle="Calculated across 4 defense pillars"
               size={150}

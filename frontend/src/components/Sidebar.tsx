@@ -8,6 +8,8 @@ import {
   FolderArchive,
   ShieldAlert,
   ShieldCheck,
+  CreditCard,
+  Scan,
   Wrench,
   X,
 } from 'lucide-react';
@@ -24,6 +26,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onCloseMobile }) =
   const navItems = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'alexa', label: 'Alexa Simulator', icon: Mic, badge: 'Voice Handoff' },
+    { id: 'payment', label: 'Payment Checker', icon: Scan, badge: 'Scanner' },
     { id: 'advisor', label: 'AI Advisor', icon: MessageSquare },
     { id: 'emergency', label: 'Emergency', icon: AlertTriangle, isEmergency: true },
     { id: 'audit', label: 'Health Audit', icon: ClipboardCheck },

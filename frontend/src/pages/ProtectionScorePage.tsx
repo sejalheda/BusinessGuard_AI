@@ -23,7 +23,7 @@ import { AuditResult } from '../types';
 import { useApp } from '../context/AppContext';
 
 export const ProtectionScorePage: React.FC = () => {
-  const { setCurrentTab } = useApp();
+  const { setCurrentTab, scoreBonus } = useApp();
   const [auditData, setAuditData] = useState<AuditResult | null>(null);
 
   useEffect(() => {
@@ -32,7 +32,7 @@ export const ProtectionScorePage: React.FC = () => {
       .catch(() => {});
   }, []);
 
-  const overall = auditData?.overall_score || 68;
+  const overall = Math.min(99, (auditData?.overall_score || 68) + scoreBonus);
   const categories = auditData?.category_scores || {
     legal: 65,
     security: 60,

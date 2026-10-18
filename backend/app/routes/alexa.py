@@ -168,6 +168,8 @@ def interact_alexa(req: AlexaInteractRequest):
             "metadata": {"business_name": "Saree Haven by Priya", "channel": "Alexa Voice", "handoff_ready": True}
         })
 
+        reasoning_list = case_res.get("reasoning", [])
+
         spoken = (
             f"I have registered Case {created_id}. Here are your first three immediate actions: "
             f"One: Search your registered email for an alert from security at mail dot instagram dot com and tap Revert This Change. "
@@ -193,5 +195,6 @@ def interact_alexa(req: AlexaInteractRequest):
             next_question=None,
             immediate_actions=actions,
             turn_index=4,
-            tools_used=tools_used
+            tools_used=tools_used,
+            reasoning=reasoning_list
         )

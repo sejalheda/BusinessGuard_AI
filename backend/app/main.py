@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.config import settings
 from backend.app.database import init_db
-from backend.app.routes import cases, chat, alexa, audit, emergency, mcp_routes
+from backend.app.routes import cases, chat, alexa, audit, emergency, mcp_routes, payment
 from mcp_server.tools import TOOL_DEFINITIONS
 
 @asynccontextmanager
@@ -34,6 +34,7 @@ app.include_router(alexa.router)
 app.include_router(audit.router)
 app.include_router(emergency.router)
 app.include_router(mcp_routes.router)
+app.include_router(payment.router)
 
 @app.get("/")
 def root():

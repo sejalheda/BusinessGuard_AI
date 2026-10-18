@@ -8,7 +8,9 @@ import {
   ClipboardCheck,
   Award,
   CheckCircle2,
-  RefreshCw,
+  Scan,
+  Activity,
+  QrCode,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -28,10 +30,10 @@ export const DemoWalkthrough: React.FC = () => {
   const steps = [
     {
       step: 1,
-      title: "1. Meet Priya — Saree Haven",
+      title: "1. Meet Priya & Risk Radar",
       description:
-        "Priya runs 'Saree Haven', a beloved Instagram boutique with 28,000 followers. This morning, she clicked a copyright warning link and lost account access. The hacker is messaging buyers for crypto.",
-      icon: Sparkles,
+        "Priya runs 'Saree Haven' on Instagram (28k followers). On the dashboard, she monitors the Risk Radar widget showing real-time Cyber, Fraud, Legal, and Brand threat levels synthesized from recent cases and audits.",
+      icon: Activity,
       actionText: "Simulate Alexa Voice Call",
       onAdvance: () => {
         setCurrentTab('alexa');
@@ -40,11 +42,11 @@ export const DemoWalkthrough: React.FC = () => {
     },
     {
       step: 2,
-      title: "2. Alexa First Responder Call",
+      title: "2. Alexa Call & QR Code Handoff",
       description:
-        "Priya asks: 'Alexa, ask BusinessGuard, my Instagram was hacked.' Alexa asks 3 rapid follow-up questions, gives immediate steps, speaks Case ID BG-2026-005, and saves it to SQLite.",
-      icon: Mic,
-      actionText: "Handoff to Web App",
+        "When hacked, Priya speaks: 'Alexa, ask BusinessGuard, my Instagram was hacked.' Alexa asks 3 rapid questions, generates Case BG-2026-005, and renders a scannable QR Code and 'Copy link' button for phone handoff.",
+      icon: QrCode,
+      actionText: "Open Case & Reasoning",
       onAdvance: () => {
         setActiveCaseId('BG-2026-005');
         setCurrentTab('cases');
@@ -54,11 +56,11 @@ export const DemoWalkthrough: React.FC = () => {
     },
     {
       step: 3,
-      title: "3. Seamless Web App Handoff",
+      title: "3. Visible Reasoning Panel",
       description:
-        "Priya opens BusinessGuard on her laptop. The web app instantly picks up Case BG-2026-005 with a 'Continued from Alexa' banner, the complete voice conversation, and immediate next steps.",
+        "Priya resumes Case BG-2026-005 with the 'Continued from Alexa' banner. The collapsible 'Why this verdict' Visible Reasoning Panel lists evidence checks (IP from foreign host, no reset request) with confidence chips and MCP tool attribution.",
       icon: ShieldAlert,
-      actionText: "View Emergency Rescue Plan",
+      actionText: "Emergency Recovery Timeline",
       onAdvance: () => {
         setCurrentTab('emergency');
         setEmergencyActive(true);
@@ -67,24 +69,24 @@ export const DemoWalkthrough: React.FC = () => {
     },
     {
       step: 4,
-      title: "4. Emergency Mode & Recovery Plan",
+      title: "4. Recovery Timeline with Live Ticks",
       description:
-        "The app shifts to a dramatic red emergency theme. Priya receives a 24-hour containment plan, Meta identity verification instructions, and an evidence checklist for cyber cell reporting.",
-      icon: ShieldAlert,
-      actionText: "Take Business Health Audit",
+        "In Emergency Mode, Priya follows the 3-phase milestones (First hour, First 24 hours, First week). Ticking each step animates the circular progress ring, persists in SQLite, and triggers a floating '+2 Protection Score' boost!",
+      icon: CheckCircle2,
+      actionText: "Test Payment Checker",
       onAdvance: () => {
-        setCurrentTab('audit');
+        setCurrentTab('payment');
         setEmergencyActive(false);
         setDemoStep(5);
       },
     },
     {
       step: 5,
-      title: "5. Guided Health Audit",
+      title: "5. Fake Payment Screenshot Checker",
       description:
-        "Once the emergency is stabilized, Priya takes the 12-question audit. The MCP score engine analyzes her security posture and spots missing 2FA and manual payment verification.",
-      icon: ClipboardCheck,
-      actionText: "See Final Protection Score",
+        "Priya uploads a suspicious UPI receipt screenshot. The scanner inspects typography and timestamp disparities, lists visual warning signs, provides a bank verification checklist, and enables 1-click case creation.",
+      icon: Scan,
+      actionText: "View Protection Score",
       onAdvance: () => {
         setCurrentTab('score');
         setDemoStep(6);
@@ -94,9 +96,9 @@ export const DemoWalkthrough: React.FC = () => {
       step: 6,
       title: "6. Business Protection Score",
       description:
-        "Priya sees her overall Protection Score, gauge breakdowns for Legal, Security, Operations, and Brand, plus the top 3 high-impact fixes to make her store resilient.",
+        "Priya views her overall Protection Score boosted by completed recovery milestones, interactive gauges across all 4 defense pillars, trend history, and high-impact resilience recommendations.",
       icon: Award,
-      actionText: "Complete Demo",
+      actionText: "Complete Demo Tour",
       onAdvance: () => {
         stopDemo();
       },

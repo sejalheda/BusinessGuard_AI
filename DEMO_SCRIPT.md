@@ -49,57 +49,68 @@
 **(Visual: The Alexa ring completes the analysis and generates a Case ID.)**
 
 **Alexa (Voiceover):**  
-*"I have registered Case BG-2026-005. Here are your first three immediate actions:  
-One: Search your registered email for an alert from security at mail dot instagram dot com and tap 'Revert This Change'.  
-Two: On your Instagram app login screen, tap 'Need More Help' and submit a Video Selfie Identity Verification.  
-Three: Post an emergency warning on your personal WhatsApp status telling customers not to transfer funds.  
-You can now continue this exact case on your BusinessGuard web app using Case ID BG-2026-005."*
+*"I have registered Case BG-2026-005. I've placed a QR code and instant recovery link on your screen. Search your email for 'security@mail.instagram.com' and tap 'Revert This Change'. Scan the QR code or click Continue to open your full recovery plan."*
 
 ---
 
-### [1:05 - 1:40] Scene 3: The Seamless Web App Handoff
+### [1:00 - 1:35] Scene 3: Web App Handoff & Visible Reasoning Panel
 
-**(Visual: Screen transitions to the BusinessGuard Web App. The top bar enters Case ID BG-2026-005. The app shifts to a dramatic red emergency theme with a pulsing alert.)**
-
-**Narrator:**  
-"This is BusinessGuard's signature handoff. The owner starts a rescue by voice on Alexa, gets a Case ID, and immediately picks up the exact same case on screen."
-
-**(Visual: Highlight the 'Continued from Alexa Voice Rescue' banner with timestamp and the live turns synced directly from SQLite.)**
+**(Visual: Presenter clicks 'Continue on Web App' or scans the QR code. The browser opens /cases/BG-2026-005 directly. The app shifts to a dramatic red emergency accent.)**
 
 **Narrator:**  
-"Notice the top banner: 'Continued from Alexa Voice Rescue'. All voice dialogue turns, answers, and timestamps were persisted directly through our self-hosted Model Context Protocol (MCP) server into local SQLite. No context lost, zero duplicate questions."
+"Notice the top banner: 'Continued from Alexa Voice Rescue'. All voice dialogue turns, answers, and timestamps were persisted through our self-hosted Model Context Protocol (MCP) server directly into SQLite."
 
-"The system automatically switches into Emergency Mode with a 4-part containment dossier:  
-1. **Immediate Actions (0-60 min)** to stop follower scamming.  
-2. **A 24-Hour Plan** to unlink Meta Business Suite ad accounts.  
-3. **An Evidence Checklist** for filing reports on cybercrime.gov.in.  
-4. **Future Hardening** steps."
+**(Visual: Presenter clicks on the 'Why this verdict' Visible Reasoning Panel. Three checks animate in smoothly with High confidence chips and MCP tool attribution.)**
+
+**Narrator:**  
+"Here is BusinessGuard's **Visible Reasoning Panel**. Rather than an opaque black box, BusinessGuard clearly explains why this incident was categorized as Critical:  
+- Login attempt from unrecognized IP detected.  
+- Password change completed without 2FA challenge.  
+- Live phishing broadcasts targeting existing buyer contacts.  
+Every check is transparently tagged with the MCP tool that verified it."
 
 ---
 
-### [1:40 - 2:05] Scene 4: Business Health Audit & MCP Tool Engine
+### [1:35 - 2:05] Scene 4: 3-Phase Recovery Timeline with Live Ticks
 
-**(Visual: Navigating to the 'Health Audit' page. The presenter clicks through the 12 guided questions with the animated progress bar.)**
-
-**Narrator:**  
-"Once the immediate crisis is contained, Priya runs a 12-point Business Health Audit.  
-One question at a time: formal registration, GST, authenticator MFA, supplier contracts, invoice habits, and cyber insurance."
-
-**(Visual: The audit completes and the MCP `score_business` tool executes, displaying Strengths, Weaknesses, and a 5-step Action Plan.)**
+**(Visual: Presenter scrolls to the Recovery Timeline showing 'First hour', 'First 24 hours', and 'First week'.)**
 
 **Narrator:**  
-"The backend agent calls our self-hosted MCP server running the official `mcp` SDK over streamable HTTP. The tool scores Priya's business and generates a tailor-made hardening plan."
+"In the recovery console, Priya receives a structured 3-phase containment roadmap. When she performs the first step—reverting the email change—she ticks the checkbox."
+
+**(Visual: Presenter ticks the first checkbox. An animated checkmark appears, a floating '+2 Protection Score' badge flies up, the circular progress ring advances, and an auto-logged milestone appears in the conversation history.)**
+
+**Narrator:**  
+"Ticking a step immediately logs a timestamped milestone in SQLite and awards +2 points to her live Protection Score. When all containment steps are done, the case can be marked Resolved with a single click."
 
 ---
 
-### [2:05 - 2:30] Scene 5: Protection Score Dashboard & Wrap-up
+### [2:05 - 2:30] Scene 5: Fake Payment Screenshot Checker & Risk Radar
 
-**(Visual: The Protection Score Dashboard opens with animated gauges for Legal, Security, Operations, and Brand, the overall score of 68, the 6-week trend chart, and Top 3 fixes.)**
+**(Visual: Presenter navigates to 'Payment Checker' from the sidebar and drags a sample fake UPI screenshot into the dropzone.)**
 
 **Narrator:**  
-"The result? A clear, investor-grade Protection Score Dashboard. Priya sees exactly where her business stands: Legal at 65%, Security at 60%, Operations at 75%, and Brand at 70%."
+"Cyber attacks aren't the only crisis solo sellers face. Scammers routinely send forged UPI screenshots demanding same-day shipping.  
+Priya drops the receipt into BusinessGuard's **Fake Payment Screenshot Checker**."
 
-"Most importantly, she gets the Top 3 high-impact fixes that will raise her score the most: turning on Authenticator MFA (+18 points), enforcing settled bank credits before dispatch (+14 points), and adopting a password vault (+12 points)."
+**(Visual: An animated scanning beam glides over the image. The risk meter swings to 'High Risk (88%)', highlighting typography manipulation around the amount, mismatched timestamps, and missing bank ledger credits.)**
+
+**Narrator:**  
+"Powered by vision analysis and MCP heuristics, it spots the Canva editing artifacts and provides an instant 4-step bank verification checklist—plus a button to immediately open a case."
+
+**(Visual: Screen navigates back to Home, highlighting the Risk Radar widget with Cyber, Fraud, Legal, and Brand rows.)**
+
+**Narrator:**  
+"On her Home dashboard, the **Risk Radar** continuously reflects her real-time exposure. With one click, Priya sees why Fraud and Cyber are elevated—and what exact actions will restore her business."
+
+---
+
+### [2:30 - 2:50] Scene 6: Protection Score Dashboard & Conclusion
+
+**(Visual: Protection Score page opens with animated SVG gauges, category breakdowns, and top 3 fixes.)**
+
+**Narrator:**  
+"With an overall Protection Score of 68—now boosted by her completed recovery milestones—Priya has clear, non-technical steps to reach resilient defense."
 
 **(Visual: The BusinessGuard tagline animates onto the screen: 'Your business's first responder.')**
 

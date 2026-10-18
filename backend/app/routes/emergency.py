@@ -35,5 +35,7 @@ def trigger_emergency(req: EmergencyRequest):
         immediate_actions=plan.get("immediate_actions", []),
         plan_24h=plan.get("plan_24h", []),
         evidence_checklist=plan.get("evidence_checklist", []),
-        prevention_tips=plan.get("prevention_tips", [])
+        prevention_tips=plan.get("prevention_tips", []),
+        reasoning=case_res.get("reasoning", []),
+        recovery_plan=plan
     )

@@ -16,6 +16,8 @@ interface AppContextType {
   setUsingDemoBadge: (val: boolean) => void;
   currentTab: string;
   setCurrentTab: (tab: string) => void;
+  scoreBonus: number;
+  addScoreBonus: (points: number) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -28,6 +30,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [demoStep, setDemoStep] = useState<number>(0);
   const [usingDemoBadge, setUsingDemoBadge] = useState<boolean>(true); // Default shows mock/demo responses badge
   const [currentTab, setCurrentTab] = useState<string>('home');
+  const [scoreBonus, setScoreBonus] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('bg_score_bonus');
+      return saved ? parseInt(saved, 10) : 0;
+    } catch {
+      return 0;
+    }
+  });
+
+  const addScoreBonus = (points: number) => {
+    setScoreBonus((prev) => {
+      const next = prev + points;
+      try {
+        localStorage.setItem('bg_score_bonus', String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   useEffect(() => {
     const root = document.documentElement;
@@ -71,6 +91,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setUsingDemoBadge,
         currentTab,
         setCurrentTab,
+        scoreBonus,
+        addScoreBonus,
       }}
     >
       {children}

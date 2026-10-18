@@ -1,13 +1,22 @@
+# Environment and Secrets
+.env
+*.env
+*.local
+
 # Python
-__pycache__/
-*.py[cod]
-*$py.class
 .venv/
 venv/
 env/
-.env
+__pycache__/
+*.pyc
+*.py[cod]
+*$py.class
+*.log
+.coverage
+.pytest_cache/
 
 # Database
+data/businessguard.db
 data/*.db
 data/*.sqlite
 data/*.sqlite3
@@ -17,11 +26,12 @@ data/*.sqlite3
 # Node / Frontend
 node_modules/
 dist/
+build/
 .vite/
-*.local
 
 # System & IDE
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
+

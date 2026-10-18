@@ -1,7 +1,16 @@
 from typing import Any, Optional
 from pydantic import BaseModel, Field
 
+class ReasoningCheck(BaseModel):
+    check: str
+    evidence: str
+    confidence: str = "High"  # High, Medium, Low
+    tool: str = "analyze_incident"
+
 class RecoveryPlan(BaseModel):
+    first_hour: list[str] = Field(default_factory=list)
+    first_24h: list[str] = Field(default_factory=list)
+    first_week: list[str] = Field(default_factory=list)
     immediate_actions: list[str] = Field(default_factory=list)
     plan_24h: list[str] = Field(default_factory=list)
     evidence_checklist: list[str] = Field(default_factory=list)
@@ -12,6 +21,7 @@ class StructuredCard(BaseModel):
     situation_analysis: str = ""
     recommended_actions: list[str] = Field(default_factory=list)
     prevention_tips: list[str] = Field(default_factory=list)
+    reasoning: list[ReasoningCheck] = Field(default_factory=list)
 
 class CaseModel(BaseModel):
     id: str
@@ -20,12 +30,14 @@ class CaseModel(BaseModel):
     status: str = "open"  # open, in_progress, resolved
     title: str
     description: Optional[str] = ""
-    source: str = "web"  # alexa, web, advisor
+    source: str = "web"  # alexa, web, advisor, emergency_button, payment_checker
     created_at: str
     updated_at: str
     answers: Optional[dict[str, Any]] = None
     turns: list[dict[str, Any]] = Field(default_factory=list)
     recovery_plan: Optional[RecoveryPlan] = None
+    completed_steps: list[str] = Field(default_factory=list)
+    reasoning: list[ReasoningCheck] = Field(default_factory=list)
     metadata: Optional[dict[str, Any]] = None
 
 class CreateCaseRequest(BaseModel):
@@ -34,6 +46,7 @@ class CreateCaseRequest(BaseModel):
     title: Optional[str] = None
     source: str = "web"
     answers: Optional[dict[str, Any]] = None
+    reasoning: Optional[list[ReasoningCheck]] = None
     metadata: Optional[dict[str, Any]] = None
 
 class UpdateCaseRequest(BaseModel):
@@ -42,6 +55,8 @@ class UpdateCaseRequest(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     recovery_plan: Optional[RecoveryPlan] = None
+    completed_steps: Optional[list[str]] = None
+    reasoning: Optional[list[ReasoningCheck]] = None
     answers: Optional[dict[str, Any]] = None
     metadata: Optional[dict[str, Any]] = None
 
@@ -64,6 +79,7 @@ class ChatResponse(BaseModel):
     provider: str = "mock"
     is_fallback: bool = False
     structured_card: Optional[StructuredCard] = None
+    reasoning: list[ReasoningCheck] = Field(default_factory=list)
 
 class AlexaInteractRequest(BaseModel):
     transcript: str
@@ -80,6 +96,7 @@ class AlexaInteractResponse(BaseModel):
     immediate_actions: list[str] = Field(default_factory=list)
     turn_index: int = 0
     tools_used: list[dict[str, Any]] = Field(default_factory=list)
+    reasoning: list[ReasoningCheck] = Field(default_factory=list)
 
 class AuditAnswers(BaseModel):
     registration: bool = False
@@ -118,3 +135,14 @@ class EmergencyResponse(BaseModel):
     plan_24h: list[str]
     evidence_checklist: list[str]
     prevention_tips: list[str]
+    reasoning: list[ReasoningCheck] = Field(default_factory=list)
+    recovery_plan: Optional[RecoveryPlan] = None
+
+class PaymentCheckResponse(BaseModel):
+    risk_level: str  # High Risk, Medium Risk, Low Risk
+    risk_score: int  # 0 to 100
+    warning_signs: list[str]
+    bank_checklist: list[str]
+    disclaimer: str = "Always confirm the credit in your bank account before shipping."
+    suggested_incident_type: str = "fake_payment_fraud"
+    reasoning: list[ReasoningCheck] = Field(default_factory=list)

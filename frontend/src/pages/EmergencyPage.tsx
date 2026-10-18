@@ -10,14 +10,19 @@ import {
   ExternalLink,
   Flame,
 } from 'lucide-react';
-import { triggerEmergency } from '../services/api';
+import { triggerEmergency, updateCase } from '../services/api';
 import { useApp } from '../context/AppContext';
+import { ReasoningPanel } from '../components/ReasoningPanel';
+import { RecoveryTimeline } from '../components/RecoveryTimeline';
+import { ReasoningCheck, RecoveryPlan } from '../types';
 
 export const EmergencyPage: React.FC = () => {
-  const { setActiveCaseId, setCurrentTab, setEmergencyActive } = useApp();
+  const { setActiveCaseId, setCurrentTab, setEmergencyActive, addScoreBonus } = useApp();
 
   const [selectedType, setSelectedType] = useState<string>('instagram_hacked');
   const [loading, setLoading] = useState<boolean>(false);
+  const [completedSteps, setCompletedSteps] = useState<string[]>([]);
+  const [isResolved, setIsResolved] = useState<boolean>(false);
   const [emergencyResult, setEmergencyResult] = useState<{
     case_id: string;
     severity: string;
@@ -26,6 +31,8 @@ export const EmergencyPage: React.FC = () => {
     plan_24h: string[];
     evidence_checklist: string[];
     prevention_tips: string[];
+    reasoning?: ReasoningCheck[];
+    recovery_plan?: RecoveryPlan;
   } | null>(null);
 
   const emergencyTypes = [
@@ -62,6 +69,8 @@ export const EmergencyPage: React.FC = () => {
   const handleTrigger = async (typeId: string) => {
     setSelectedType(typeId);
     setLoading(true);
+    setCompletedSteps([]);
+    setIsResolved(false);
     try {
       const res = await triggerEmergency({
         emergency_type: typeId,
@@ -74,6 +83,46 @@ export const EmergencyPage: React.FC = () => {
       console.error(e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToggleStep = async (stepText: string) => {
+    if (!emergencyResult) return;
+    const isDone = completedSteps.includes(stepText);
+    const nextCompleted = isDone
+      ? completedSteps.filter((s) => s !== stepText)
+      : [...completedSteps, stepText];
+    setCompletedSteps(nextCompleted);
+
+    if (!isDone) {
+      addScoreBonus(2);
+    }
+
+    try {
+      await updateCase(emergencyResult.case_id, {
+        completed_steps: nextCompleted,
+        turns: [
+          {
+            role: 'assistant' as const,
+            content: `[Emergency Protocol] Step "${stepText}" marked as ${!isDone ? 'COMPLETED ✓ (+2 Protection Score)' : 'PENDING'}.`,
+            timestamp: new Date().toISOString(),
+            source: 'emergency_tick',
+          },
+        ],
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleResolveCase = async () => {
+    if (!emergencyResult) return;
+    setIsResolved(true);
+    try {
+      await updateCase(emergencyResult.case_id, { status: 'resolved' });
+      setEmergencyActive(false);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -163,6 +212,24 @@ export const EmergencyPage: React.FC = () => {
               <ExternalLink className="w-3.5 h-3.5" />
             </button>
           </div>
+
+          {/* Visible Reasoning Panel ("Why this verdict") */}
+          {emergencyResult.reasoning && emergencyResult.reasoning.length > 0 && (
+            <ReasoningPanel reasoning={emergencyResult.reasoning} defaultExpanded={true} />
+          )}
+
+          {/* Interactive 3-Phase Recovery Timeline with Step Ticking */}
+          {emergencyResult.recovery_plan && (
+            <div className="space-y-4">
+              <RecoveryTimeline
+                plan={emergencyResult.recovery_plan}
+                completedSteps={completedSteps}
+                onToggleStep={handleToggleStep}
+                onResolveCase={handleResolveCase}
+                isResolved={isResolved}
+              />
+            </div>
+          )}
 
           {/* 4 Emergency Output Quadrants */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

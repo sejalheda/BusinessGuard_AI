@@ -13,8 +13,10 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { fetchCase, updateCase } from '../services/api';
-import { CaseItem } from '../types';
+import { CaseItem, CaseTurn } from '../types';
 import { McpToolsPanel } from '../components/McpToolsPanel';
+import { ReasoningPanel } from '../components/ReasoningPanel';
+import { RecoveryTimeline } from '../components/RecoveryTimeline';
 import { useApp } from '../context/AppContext';
 
 interface CaseDetailPageProps {
@@ -23,7 +25,7 @@ interface CaseDetailPageProps {
 }
 
 export const CaseDetailPage: React.FC<CaseDetailPageProps> = ({ caseId, onBack }) => {
-  const { setCurrentTab } = useApp();
+  const { setCurrentTab, addScoreBonus } = useApp();
 
   const [caseData, setCaseData] = useState<CaseItem | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -48,6 +50,55 @@ export const CaseDetailPage: React.FC<CaseDetailPageProps> = ({ caseId, onBack }
       console.error(e);
     } finally {
       setUpdatingStatus(false);
+    }
+  };
+
+  const handleToggleRecoveryStep = async (stepText: string) => {
+    if (!caseData) return;
+    const currentCompleted = caseData.completed_steps || [];
+    let updatedCompleted: string[] = [];
+
+    if (currentCompleted.includes(stepText)) {
+      updatedCompleted = currentCompleted.filter((s) => s !== stepText);
+    } else {
+      updatedCompleted = [...currentCompleted, stepText];
+    }
+
+    // Add entry to case turns timeline
+    const nowIso = new Date().toISOString();
+    const isNowDone = updatedCompleted.includes(stepText);
+    if (isNowDone) {
+      addScoreBonus(2);
+    }
+    const updatedTurns: CaseTurn[] = [
+      ...caseData.turns,
+      {
+        role: 'assistant' as const,
+        content: `[Recovery Milestone Update] Step "${stepText}" marked as ${isNowDone ? 'COMPLETED ✓ (+2 Protection Score)' : 'PENDING'}.`,
+        timestamp: nowIso,
+        source: 'timeline_tick',
+      },
+    ];
+
+    // Optimistic UI update
+    setCaseData((prev) =>
+      prev
+        ? {
+            ...prev,
+            completed_steps: updatedCompleted,
+            turns: updatedTurns,
+          }
+        : null
+    );
+
+    // Persist to SQLite
+    try {
+      await updateCase(caseData.id, {
+        completed_steps: updatedCompleted,
+        turns: updatedTurns,
+      });
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -174,18 +225,23 @@ export const CaseDetailPage: React.FC<CaseDetailPageProps> = ({ caseId, onBack }
             {caseData.description}
           </p>
         )}
+
+        {/* Visible Reasoning Panel ("Why this verdict") */}
+        {caseData.reasoning && caseData.reasoning.length > 0 && (
+          <ReasoningPanel reasoning={caseData.reasoning} defaultExpanded={true} />
+        )}
       </div>
 
-      {/* Main Grid: Conversation Transcript Timeline & Recovery Plan */}
+      {/* Main Grid: Conversation Transcript & Recovery Timeline with Ticks */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left: Conversation Timeline */}
         <div className="lg:col-span-5 rounded-2xl p-5 glass-card border border-slate-200 dark:border-white/10 space-y-4">
           <h3 className="font-extrabold text-xs uppercase tracking-wider text-slate-400 flex items-center justify-between border-b border-slate-200/60 dark:border-white/10 pb-2">
-            <span>Conversation & Intake Log</span>
-            <span>{turns.length} Turns</span>
+            <span>Conversation & Timeline History</span>
+            <span>{turns.length} Entries</span>
           </h3>
 
-          <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1 text-xs">
+          <div className="space-y-3 max-h-[560px] overflow-y-auto pr-1 text-xs">
             {turns.length === 0 ? (
               <p className="text-slate-400 text-center py-6">No recorded turns for this incident.</p>
             ) : (
@@ -193,14 +249,20 @@ export const CaseDetailPage: React.FC<CaseDetailPageProps> = ({ caseId, onBack }
                 <div
                   key={idx}
                   className={`p-3 rounded-xl border ${
-                    t.role === 'user'
+                    t.source === 'timeline_tick'
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-900 dark:text-emerald-200 font-bold'
+                      : t.role === 'user'
                       ? 'bg-blue-50/50 dark:bg-navy-900/60 border-blue-200/50 dark:border-blue-900/30'
                       : 'bg-slate-100/60 dark:bg-navy-950/70 border-slate-200/60 dark:border-white/5'
                   }`}
                 >
                   <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
                     <span className="font-bold text-slate-700 dark:text-slate-300 capitalize">
-                      {t.role === 'user' ? 'Merchant (Owner)' : 'BusinessGuard Responder'}
+                      {t.source === 'timeline_tick'
+                        ? 'Milestone Auto-Log'
+                        : t.role === 'user'
+                        ? 'Merchant (Owner)'
+                        : 'BusinessGuard Responder'}
                     </span>
                     <span className="font-mono">{t.source || 'Session'}</span>
                   </div>
@@ -211,64 +273,16 @@ export const CaseDetailPage: React.FC<CaseDetailPageProps> = ({ caseId, onBack }
           </div>
         </div>
 
-        {/* Right: Full Recovery Plan & Evidence Checklist */}
+        {/* Right: Recovery Timeline with Ticks */}
         <div className="lg:col-span-7 space-y-4">
           {plan ? (
-            <div className="space-y-4">
-              {/* Immediate Actions */}
-              <div className="rounded-2xl p-5 glass-card border border-red-500/30 space-y-3">
-                <h4 className="font-extrabold text-xs uppercase tracking-wider text-red-600 dark:text-red-400 flex items-center">
-                  <CheckCircle2 className="w-4 h-4 mr-1.5" />
-                  Immediate Recovery Actions
-                </h4>
-                <div className="space-y-2">
-                  {plan.immediate_actions.map((act, i) => (
-                    <div
-                      key={i}
-                      className="p-2.5 rounded-xl bg-red-500/5 dark:bg-red-950/20 text-xs text-slate-800 dark:text-slate-200 border border-red-500/20 font-medium"
-                    >
-                      {i + 1}. {act}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* 24-Hour Plan */}
-              <div className="rounded-2xl p-5 glass-card border border-amber-500/30 space-y-3">
-                <h4 className="font-extrabold text-xs uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center">
-                  <Clock className="w-4 h-4 mr-1.5" />
-                  24-Hour Containment Milestones
-                </h4>
-                <div className="space-y-2">
-                  {plan.plan_24h.map((p, i) => (
-                    <div
-                      key={i}
-                      className="p-2.5 rounded-xl bg-amber-500/5 dark:bg-amber-950/20 text-xs text-slate-800 dark:text-slate-200 border border-amber-500/20 font-medium"
-                    >
-                      • {p}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Evidence Checklist */}
-              <div className="rounded-2xl p-5 glass-card border border-blue-500/30 space-y-3">
-                <h4 className="font-extrabold text-xs uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center">
-                  <FileText className="w-4 h-4 mr-1.5" />
-                  Official Evidence Checklist for Meta Appeals & Cyber Crime
-                </h4>
-                <div className="space-y-2">
-                  {plan.evidence_checklist.map((e, i) => (
-                    <div
-                      key={i}
-                      className="p-2.5 rounded-xl bg-blue-500/5 dark:bg-blue-950/20 text-xs text-slate-800 dark:text-slate-200 border border-blue-500/20 font-medium"
-                    >
-                      ☑ {e}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <RecoveryTimeline
+              plan={plan}
+              completedSteps={caseData.completed_steps || []}
+              onToggleStep={handleToggleRecoveryStep}
+              onResolveCase={() => handleStatusChange('resolved')}
+              isResolved={caseData.status === 'resolved'}
+            />
           ) : (
             <div className="p-8 rounded-2xl glass-card text-center text-slate-400 text-xs">
               No recovery plan generated yet for this incident.

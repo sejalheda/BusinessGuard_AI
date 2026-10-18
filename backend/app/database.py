@@ -32,6 +32,8 @@ def init_db() -> None:
         answers TEXT,
         turns TEXT,
         recovery_plan TEXT,
+        reasoning TEXT,
+        completed_steps TEXT,
         metadata TEXT
     )
     """)
@@ -52,6 +54,14 @@ def init_db() -> None:
     )
     """)
     
+    # Safe SQLite column migrations for existing databases
+    cursor.execute("PRAGMA table_info(cases)")
+    existing_cols = [r["name"] for r in cursor.fetchall()]
+    if "reasoning" not in existing_cols:
+        cursor.execute("ALTER TABLE cases ADD COLUMN reasoning TEXT")
+    if "completed_steps" not in existing_cols:
+        cursor.execute("ALTER TABLE cases ADD COLUMN completed_steps TEXT")
+
     conn.commit()
     
     # Check if seed cases are needed

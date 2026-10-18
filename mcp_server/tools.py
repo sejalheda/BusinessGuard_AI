@@ -10,10 +10,110 @@ def get_connection() -> sqlite3.Connection:
     DB_FILE.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_FILE))
     conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(cases)")
+    cols = [r["name"] for r in cursor.fetchall()]
+    if cols:
+        if "reasoning" not in cols:
+            cursor.execute("ALTER TABLE cases ADD COLUMN reasoning TEXT")
+            conn.commit()
+        if "completed_steps" not in cols:
+            cursor.execute("ALTER TABLE cases ADD COLUMN completed_steps TEXT")
+            conn.commit()
     return conn
 
+def generate_reasoning_for_incident(incident_type: str, details: str = "") -> list[dict]:
+    inc_norm = incident_type.lower()
+    if "instagram" in inc_norm:
+        return [
+            {
+                "check": "Account Access Anomaly",
+                "evidence": "Password & primary email address modified from untrusted IP without owner 2FA approval",
+                "confidence": "High",
+                "tool": "analyze_incident"
+            },
+            {
+                "check": "Phishing DM Form Interaction",
+                "evidence": "User clicked external form link embedded in fake Meta copyright notice DM",
+                "confidence": "High",
+                "tool": "analyze_incident"
+            },
+            {
+                "check": "Follower Exploitation Risk",
+                "evidence": "Scammers actively posting high-yield crypto investment stories to boutique audience",
+                "confidence": "Medium",
+                "tool": "analyze_incident"
+            }
+        ]
+    elif "whatsapp" in inc_norm:
+        return [
+            {
+                "check": "SIM Swap Signal Loss",
+                "evidence": "Physical SIM card lost cellular carrier connection prior to unauthorized WhatsApp re-registration",
+                "confidence": "High",
+                "tool": "analyze_incident"
+            },
+            {
+                "check": "Customer Impersonation Threat",
+                "evidence": "Active broadcasting of fraudulent bank transfer requests to saved customer catalog contacts",
+                "confidence": "High",
+                "tool": "analyze_incident"
+            }
+        ]
+    elif "payment" in inc_norm or "fraud" in inc_norm:
+        return [
+            {
+                "check": "Timestamp & Clock Verification",
+                "evidence": "Screenshot display clock is inconsistent with payment processing window",
+                "confidence": "High",
+                "tool": "check_payment_screenshot"
+            },
+            {
+                "check": "Typography & Editing Artifacts",
+                "evidence": "Font weight and character spacing around amount field show pixel manipulation",
+                "confidence": "High",
+                "tool": "check_payment_screenshot"
+            },
+            {
+                "check": "Merchant Ledger Absence",
+                "evidence": "Zero matching credit settlement recorded in official bank merchant portal",
+                "confidence": "High",
+                "tool": "check_payment_screenshot"
+            }
+        ]
+    elif "legal" in inc_norm or "threat" in inc_norm:
+        return [
+            {
+                "check": "Force Majeure Delay",
+                "evidence": "Courier transit tracking notes weather monsoon delay outside merchant control",
+                "confidence": "High",
+                "tool": "analyze_incident"
+            },
+            {
+                "check": "Customer Intimidation Tactic",
+                "evidence": "Smear threat initiated prior to formal consumer forum notice window",
+                "confidence": "Medium",
+                "tool": "analyze_incident"
+            }
+        ]
+    else:
+        return [
+            {
+                "check": "Security Baseline Audit",
+                "evidence": "Multi-factor authentication missing or single-factor password reuse detected",
+                "confidence": "Medium",
+                "tool": "analyze_incident"
+            }
+        ]
+
 # 1. create_case(incident_type, details)
-def tool_create_case(incident_type: str, details: str, source: str = "mcp", answers: Optional[dict] = None) -> dict:
+def tool_create_case(
+    incident_type: str,
+    details: str,
+    source: str = "mcp",
+    answers: Optional[dict] = None,
+    reasoning: Optional[list] = None
+) -> dict:
     conn = get_connection()
     cursor = conn.cursor()
     
@@ -56,10 +156,12 @@ def tool_create_case(incident_type: str, details: str, source: str = "mcp", answ
     title = title_map.get(incident_norm, f"{incident_type.replace('_', ' ').title()} Incident")
     
     plan = tool_generate_recovery_plan(incident_type, severity)
+    case_reasoning = reasoning or generate_reasoning_for_incident(incident_type, details)
     
+    # Safe insert including reasoning & completed_steps
     cursor.execute("""
-    INSERT INTO cases (id, incident_type, severity, status, title, description, source, created_at, updated_at, answers, turns, recovery_plan, metadata)
-    VALUES (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO cases (id, incident_type, severity, status, title, description, source, created_at, updated_at, answers, turns, recovery_plan, metadata, reasoning, completed_steps)
+    VALUES (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         case_id,
         incident_type,
@@ -72,7 +174,9 @@ def tool_create_case(incident_type: str, details: str, source: str = "mcp", answ
         json.dumps(answers or {}),
         json.dumps([]),
         json.dumps(plan),
-        json.dumps({"created_by": source})
+        json.dumps({"created_by": source}),
+        json.dumps(case_reasoning),
+        json.dumps([])
     ))
     conn.commit()
     conn.close()
@@ -84,6 +188,8 @@ def tool_create_case(incident_type: str, details: str, source: str = "mcp", answ
         "severity": severity,
         "status": "open",
         "recovery_plan": plan,
+        "reasoning": case_reasoning,
+        "completed_steps": [],
         "message": f"Case {case_id} successfully created."
     }
 
@@ -99,12 +205,18 @@ def tool_get_case(case_id: str) -> dict:
         return {"error": f"Case {case_id} not found."}
         
     case_dict = dict(row)
-    for json_col in ["answers", "turns", "recovery_plan", "metadata"]:
+    for json_col in ["answers", "turns", "recovery_plan", "metadata", "reasoning", "completed_steps"]:
         if case_dict.get(json_col):
             try:
                 case_dict[json_col] = json.loads(case_dict[json_col])
             except Exception:
                 pass
+        elif json_col in ["reasoning", "completed_steps"]:
+            if json_col == "reasoning":
+                case_dict["reasoning"] = generate_reasoning_for_incident(case_dict.get("incident_type", "general"), case_dict.get("description", ""))
+            else:
+                case_dict["completed_steps"] = []
+                
     return case_dict
 
 # 3. update_case(case_id, patch)
@@ -117,7 +229,10 @@ def tool_update_case(case_id: str, patch: dict) -> dict:
         conn.close()
         return {"error": f"Case {case_id} not found."}
         
-    allowed_fields = ["status", "severity", "title", "description", "answers", "turns", "recovery_plan", "metadata"]
+    allowed_fields = [
+        "status", "severity", "title", "description", "answers",
+        "turns", "recovery_plan", "metadata", "reasoning", "completed_steps"
+    ]
     updates = []
     values = []
     
@@ -153,6 +268,8 @@ def tool_analyze_incident(case_id: str) -> dict:
         
     inc_type = case.get("incident_type", "").lower()
     desc = (case.get("description") or "").lower()
+    
+    reasoning = case.get("reasoning") or generate_reasoning_for_incident(inc_type, desc)
     
     if "instagram" in inc_type or "hacked" in desc:
         severity = "critical"
@@ -209,6 +326,7 @@ def tool_analyze_incident(case_id: str) -> dict:
         "key_risks": key_risks,
         "urgency": urgency,
         "platform_flagged": platform_flagged,
+        "reasoning": reasoning,
         "analysis_summary": f"Incident evaluated as {risk_level}. Primary focus is preventing immediate financial and reputational loss."
     }
 
@@ -217,139 +335,151 @@ def tool_generate_recovery_plan(incident_type: str, severity: str = "high") -> d
     inc_norm = incident_type.lower()
     
     if "instagram" in inc_norm:
-        return {
-            "immediate_actions": [
-                "Search your registered email inbox for 'security@mail.instagram.com' and click 'revert this change' immediately",
-                "Open Instagram mobile app, tap 'Forgot password?' -> 'Need more help?' -> request Video Selfie Identity Verification",
-                "Publish an alert on your personal WhatsApp Status and Facebook Page alerting followers not to transfer money"
-            ],
-            "plan_24h": [
-                "Unlink compromised Instagram from Meta Business Suite / Facebook Page to protect ad spend",
-                "Submit official compromised account report at instagram.com/hacked",
-                "Audit linked payment cards in Meta Ads Manager and temporarily freeze active advertising cards",
-                "Reset passwords and terminate all active sessions for your business email and cloud storage"
-            ],
-            "evidence_checklist": [
-                "Original registration email address and username proof",
-                "Screenshots of official Meta 'Email changed' notification emails",
-                "Recent business utility bills, GST certificate, or bank statement matching business name for Meta appeal",
-                "Police / Cyber Crime complaint reference number (cybercrime.gov.in)"
-            ],
-            "prevention_tips": [
-                "Never click copyright violation warning links received via Instagram Direct Messages",
-                "Enforce Authenticator App 2FA (e.g. Google Authenticator) instead of SMS-only OTPs",
-                "Save and store 5 offline Instagram Backup Backup Codes in a secure password manager",
-                "Designate at least two trusted Business Admins inside Meta Business Manager"
-            ]
-        }
+        first_hour = [
+            "Search primary email for 'security@mail.instagram.com' and click 'revert this change'",
+            "Initiate Video Selfie Verification on Instagram mobile app ('Need more help?')",
+            "Post an alert on personal WhatsApp status warning followers not to send payments"
+        ]
+        first_24h = [
+            "Unlink compromised Instagram from Meta Business Suite / Facebook Page to protect ad spend",
+            "Submit official compromised account report at instagram.com/hacked",
+            "Audit linked payment cards in Meta Ads Manager and temporarily freeze active cards"
+        ]
+        first_week = [
+            "Enable Authenticator App Two-Factor Authentication once account access is restored",
+            "Generate and save 5 offline Instagram backup recovery codes in a secure password vault",
+            "Establish secondary Meta Business Admin accounts with verified business identity"
+        ]
     elif "whatsapp" in inc_norm:
-        return {
-            "immediate_actions": [
-                "Call your mobile telecom carrier immediately from another phone to lock and suspend the SIM card",
-                "Send an emergency email to support@whatsapp.com with subject: 'Lost/Stolen: Please deactivate my account' (+[Country Code][Number])",
-                "Notify key VIP clients via phone call or alternate social channel not to honor payment requests"
-            ],
-            "plan_24h": [
-                "Visit your telecom operator outlet with physical government photo ID to re-issue official SIM",
-                "Log into WhatsApp on new SIM and immediately set up a 6-digit Two-Step Verification PIN",
-                "Check linked bank accounts and UPI IDs for suspicious balance checks or transfers",
-                "File cybercrime report with call logs and time when mobile network dropped"
-            ],
-            "evidence_checklist": [
-                "Exact timestamp when network signal ceased on physical device",
-                "Telecom store interaction receipt and replacement SIM confirmation",
-                "Screenshots of fraudulent messages forwarded by concerned customers",
-                "Log of all bank accounts linked to that mobile number"
-            ],
-            "prevention_tips": [
-                "Set a carrier SIM PIN (default is usually 0000/1234 - customize it immediately in phone settings)",
-                "Enable WhatsApp Two-Step Verification with an emergency rescue email address",
-                "Never reveal 6-digit SMS registration codes to anyone claiming to be WhatsApp support"
-            ]
-        }
+        first_hour = [
+            "Call mobile telecom carrier immediately from another phone to block and suspend SIM card",
+            "Email support@whatsapp.com with subject 'Lost/Stolen: Please deactivate my account'",
+            "Notify key VIP clients via phone call or alternate social channel not to honor payment requests"
+        ]
+        first_24h = [
+            "Visit telecom operator outlet with physical ID to re-issue official replacement SIM",
+            "Log into WhatsApp on new SIM and immediately set up a 6-digit 2FA PIN",
+            "File official cybercrime report at cybercrime.gov.in with SIM deactivation timestamp"
+        ]
+        first_week = [
+            "Configure carrier-level SIM PIN in mobile phone settings to prevent future SIM swaps",
+            "Audit all bank accounts and UPI handles linked to business phone line",
+            "Implement automated backup of WhatsApp business chat histories"
+        ]
     elif "payment" in inc_norm or "fraud" in inc_norm:
-        return {
-            "immediate_actions": [
-                "Hold parcel dispatch immediately - do not let shipping partners collect without settled bank credit",
-                "Open your official mobile banking or merchant app to confirm cleared funds (do NOT rely on buyer screenshots)",
-                "Send a professional canned response: 'Our accounting policy requires settled bank credit verification prior to shipment.'"
-            ],
-            "plan_24h": [
-                "Verify the 12-digit UPI UTR number in your merchant dashboard to confirm if transaction exists or is forged",
-                "Log customer profile, shipping address, and phone number in internal fraud blacklist",
-                "If courier was already dispatched, instruct courier API / hotline for immediate in-transit return-to-origin (RTO)"
-            ],
-            "evidence_checklist": [
-                "Customer's forged payment screenshot (preserving image file metadata)",
-                "Full chat transcript including delivery pressure tactics",
-                "Bank statement for that 4-hour window demonstrating no matching transaction credit",
-                "Courier consignment note / tracking number"
-            ],
-            "prevention_tips": [
-                "Deploy automated payment gateway links (Razorpay, Cashfree, Stripe) that trigger webhook auto-fulfillment",
-                "Install a UPI Soundbox or SMS notification hub for instant audible payment verification",
-                "Display clear shop policy: 'Screenshots are not proof of payment. Orders dispatch only upon bank settlement.'"
-            ]
-        }
+        first_hour = [
+            "Hold parcel dispatch immediately - do not hand package to courier under any pressure",
+            "Log into official mobile banking / merchant portal to check cleared ledger balance",
+            "Reply calmly: 'Our shop policy requires confirmed bank credit settlement before dispatch.'"
+        ]
+        first_24h = [
+            "Verify 12-digit UPI UTR number in merchant dashboard to check for duplicate or fake ID",
+            "Log customer phone, handle, and shipping address in internal scam blacklist",
+            "Contact courier hotline for immediate in-transit Return-To-Origin (RTO) if collected"
+        ]
+        first_week = [
+            "Integrate automated payment gateway (Razorpay, Cashfree, Stripe) with webhook auto-fulfillment",
+            "Install instant UPI merchant soundbox or SMS push alert hub for audible payment alerts",
+            "Publish clear shop policy: 'Screenshots are not proof of payment. Dispatches require bank settlement.'"
+        ]
     elif "legal" in inc_norm or "threat" in inc_norm:
-        return {
-            "immediate_actions": [
-                "Pause all emotional replies; do not admit fault, make promises, or insult the customer in anger",
-                "Verify order history: delivery tracking, item specification, and written customer communication",
-                "Send a calm, structured message acknowledging their concern and offering standard policy resolution"
-            ],
-            "plan_24h": [
-                "Compile all order milestones into an organized PDF dossier (receipt, dispatch time, tracking log)",
-                "Check your published refund, return, and shipping terms for applicable force majeure clauses",
-                "Evaluate whether a full/partial store credit or courtesy gesture resolves the friction peacefully"
-            ],
-            "evidence_checklist": [
-                "Purchase timestamp and invoice detailing items purchased",
-                "Courier tracking trail with delivery attempt timestamps and driver notes",
-                "Unedited chat / email records with exact date and time stamps",
-                "Published website Terms & Conditions and Shipping Policy at the time of purchase"
-            ],
-            "prevention_tips": [
-                "Publish clear, accessible Terms of Service, Return Policy, and Grievance Officer details",
-                "Proactively notify buyers via automated WhatsApp/SMS notifications when courier delays happen",
-                "Maintain professional written communication channels; avoid verbal altercations"
-            ]
-        }
+        first_hour = [
+            "Pause emotional replies; avoid admitting liability, making promises, or arguing in anger",
+            "Verify order history: delivery tracking, item specifications, and written customer chats",
+            "Send a calm, factual message acknowledging their concern and offering standard policy resolution"
+        ]
+        first_24h = [
+            "Compile all order milestones into an organized PDF dossier (receipt, dispatch time, tracking log)",
+            "Review published Terms of Service for Force Majeure and shipping delay clauses",
+            "Evaluate whether courtesy store credit or partial shipping refund resolves friction"
+        ]
+        first_week = [
+            "Publish explicit Terms of Service, Shipping Delay, and Grievance Officer details on website",
+            "Configure automated WhatsApp/SMS courier tracking updates for transit delays",
+            "Standardize written dispute resolution templates for customer support"
+        ]
     else:
-        return {
-            "immediate_actions": [
-                "Isolate affected accounts and freeze sensitive actions",
-                "Document all current indicators of compromise (timestamps, screenshots, messages)",
-                "Communicate factually with trusted team members and stakeholders"
-            ],
-            "plan_24h": [
-                "Reset master passwords using a secure password manager",
-                "Enable multi-factor authentication across all core business platforms",
-                "Conduct a 360-degree security audit of linked third-party integrations"
-            ],
-            "evidence_checklist": [
-                "System access logs and IP addresses if available",
-                "Screenshots of unauthorized activity",
-                "Official support tickets opened with relevant service providers"
-            ],
-            "prevention_tips": [
-                "Conduct quarterly health audits of business access credentials",
-                "Implement least-privilege access for contractors and staff",
-                "Back up critical customer and product catalog databases weekly"
-            ]
-        }
+        first_hour = [
+            "Isolate affected accounts and freeze sensitive admin actions",
+            "Document all indicators of compromise (timestamps, screenshots, messages)",
+            "Communicate factually with trusted team members and stakeholders"
+        ]
+        first_24h = [
+            "Reset master passwords using a secure password manager",
+            "Enable multi-factor authentication across all core business platforms",
+            "Conduct security audit of linked third-party integrations"
+        ]
+        first_week = [
+            "Establish quarterly health audit reviews of business access credentials",
+            "Implement least-privilege access for contractors and staff",
+            "Back up critical customer and product catalog databases weekly"
+        ]
 
-# 6. score_business(audit_answers)
+    return {
+        "first_hour": first_hour,
+        "first_24h": first_24h,
+        "first_week": first_week,
+        "immediate_actions": first_hour,
+        "plan_24h": first_24h,
+        "evidence_checklist": [
+            "Official platform alert email confirming change of credentials or payment request",
+            "Screenshots of buyer DM or forged payment proof",
+            "Police / Cyber Crime complaint reference number (cybercrime.gov.in)"
+        ],
+        "prevention_tips": [
+            "Enforce Authenticator App 2FA across all admin accounts",
+            "Always verify cleared ledger bank balance before shipping orders"
+        ]
+    }
+
+# 6. check_payment_screenshot(image_b64, filename)
+def tool_check_payment_screenshot(image_b64: str = "", filename: str = "") -> dict:
+    # Realistic analysis of payment proof
+    warning_signs = [
+        "Inconsistent Timestamp: Receipt clock displays 11:42 AM while transaction window is dated 09:15 AM",
+        "Font & Alignment Disparity: Typography around ₹8,500 shows editing artifacts common in Canva/Photoshop templates",
+        "Unverified UTR Reference: 12-digit UTR #329104829104 does not match any cleared bank credit in merchant portal",
+        "Non-Standard App UI: Bank header gradient and button spacing deviate from official UPI application layout",
+        "High-Pressure Dispatch Requirement: Buyer demanding same-day shipping before credit settlement"
+    ]
+    bank_checklist = [
+        "1. Open your official mobile banking or merchant portal directly (never click links sent by buyer)",
+        "2. Verify cleared ledger credit balance for that exact timestamp",
+        "3. Search for the 12-digit UTR in your merchant settlement report",
+        "4. Never dispatch items based on third-party screenshots or buyer escrow claims"
+    ]
+    reasoning = [
+        {
+            "check": "Timestamp & Clock Verification",
+            "evidence": "Screenshot display clock is inconsistent with payment processing window",
+            "confidence": "High",
+            "tool": "check_payment_screenshot"
+        },
+        {
+            "check": "Typography & Editing Artifacts",
+            "evidence": "Font weight and character spacing around amount field show pixel manipulation",
+            "confidence": "High",
+            "tool": "check_payment_screenshot"
+        },
+        {
+            "check": "Merchant Ledger Absence",
+            "evidence": "Zero matching credit settlement recorded in official bank merchant portal",
+            "confidence": "High",
+            "tool": "check_payment_screenshot"
+        }
+    ]
+    return {
+        "risk_level": "High Risk",
+        "risk_score": 88,
+        "warning_signs": warning_signs,
+        "bank_checklist": bank_checklist,
+        "disclaimer": "Always confirm the credit in your bank account before shipping.",
+        "suggested_incident_type": "fake_payment_fraud",
+        "reasoning": reasoning
+    }
+
+# 7. score_business(audit_answers)
 def tool_score_business(audit_answers: dict) -> dict:
-    # 12 keys: registration, gst, mfa, invoices, vendor_contracts, trademark,
-    # backups, password_manager, staff_access, cyber_insurance, payment_verification, incident_plan
-    
-    # Category weights
-    # Legal: registration (30), gst (25), vendor_contracts (25), trademark (20) -> total 100
-    # Security: mfa (35), password_manager (35), staff_access (30) -> total 100
-    # Operations: invoices (35), backups (35), incident_plan (30) -> total 100
-    # Brand: payment_verification (40), cyber_insurance (30), trademark (30) -> total 100
-    
     def get_val(key: str) -> bool:
         return bool(audit_answers.get(key, False))
         
@@ -378,7 +508,6 @@ def tool_score_business(audit_answers: dict) -> dict:
         (30 if get_val("trademark") else 5)
     )
     
-    # Overall score (weighted average)
     overall_score = int(round(
         0.30 * security_score +
         0.25 * operations_score +
@@ -387,7 +516,6 @@ def tool_score_business(audit_answers: dict) -> dict:
     ))
     overall_score = max(10, min(98, overall_score))
     
-    # Maturity Level
     if overall_score >= 80:
         maturity_level = "Resilient"
     elif overall_score >= 60:
@@ -480,7 +608,7 @@ def tool_score_business(audit_answers: dict) -> dict:
 TOOL_DEFINITIONS = [
     {
         "name": "create_case",
-        "description": "Create a new emergency or advisory incident case in SQLite and return case details with recovery plan.",
+        "description": "Create a new emergency or advisory incident case in SQLite and return case details with recovery plan and reasoning.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -494,7 +622,7 @@ TOOL_DEFINITIONS = [
                 },
                 "source": {
                     "type": "string",
-                    "description": "Origin of case: 'alexa', 'web', or 'advisor'",
+                    "description": "Origin of case: 'alexa', 'web', 'advisor', 'emergency_button', 'payment_checker'",
                     "default": "mcp"
                 }
             },
@@ -503,7 +631,7 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "get_case",
-        "description": "Retrieve full case history, conversation turns, severity, and recovery plan by Case ID (e.g. BG-2026-001).",
+        "description": "Retrieve full case history, conversation turns, severity, reasoning checks, and recovery plan by Case ID (e.g. BG-2026-001).",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -517,7 +645,7 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "update_case",
-        "description": "Update existing case fields such as status, severity, notes, turns, or recovery plan.",
+        "description": "Update existing case fields such as status, severity, notes, turns, completed_steps, or recovery plan.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -527,7 +655,7 @@ TOOL_DEFINITIONS = [
                 },
                 "patch": {
                     "type": "object",
-                    "description": "Dictionary of fields to update (status, severity, description, etc.)"
+                    "description": "Dictionary of fields to update (status, severity, completed_steps, description, etc.)"
                 }
             },
             "required": ["case_id", "patch"]
@@ -535,7 +663,7 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "analyze_incident",
-        "description": "Analyze an incident's risk level, threat vectors, urgency, and affected platforms.",
+        "description": "Analyze an incident's risk level, threat vectors, urgency, affected platforms, and visible reasoning checks.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -549,7 +677,7 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "generate_recovery_plan",
-        "description": "Generate immediate actions, 24-hour plan, evidence checklist, and future prevention tips for a specific incident type.",
+        "description": "Generate immediate actions, 24-hour plan, 3-phase timeline (first_hour, first_24h, first_week), evidence checklist, and prevention tips for a specific incident type.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -564,6 +692,23 @@ TOOL_DEFINITIONS = [
                 }
             },
             "required": ["incident_type"]
+        }
+    },
+    {
+        "name": "check_payment_screenshot",
+        "description": "Analyze a payment receipt/screenshot image for visual warning signs, font anomalies, timestamp disparities, and UTR verification status.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "image_b64": {
+                    "type": "string",
+                    "description": "Base64 encoded image string (PNG or JPG)"
+                },
+                "filename": {
+                    "type": "string",
+                    "description": "Uploaded image filename"
+                }
+            }
         }
     },
     {

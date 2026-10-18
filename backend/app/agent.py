@@ -4,9 +4,9 @@ from typing import Any, Optional
 from backend.app.cache import request_cache
 from backend.app.config import settings
 from backend.app.llm.factory import llm_provider
-from backend.app.models import ChatMessage, ChatResponse, StructuredCard
+from backend.app.models import ChatMessage, ChatResponse, StructuredCard, ReasoningCheck
 from mcp_server.client import mcp_client
-from mcp_server.tools import tool_get_case, tool_update_case
+from mcp_server.tools import tool_get_case, tool_update_case, generate_reasoning_for_incident
 
 logger = logging.getLogger("businessguard.agent")
 
@@ -21,8 +21,49 @@ Core behavioral principles:
 7. When tools are provided, use them to analyze incidents, generate structured recovery plans, or log case details.
 """
 
+def extract_reasoning(tools_used: list[dict], case_details: Optional[dict] = None, content: str = "") -> list[ReasoningCheck]:
+    reasoning_list = []
+    
+    # 1. Check tools used
+    for tu in tools_used:
+        res = tu.get("result", {})
+        if isinstance(res, dict) and "reasoning" in res:
+            for r in res["reasoning"]:
+                if isinstance(r, dict):
+                    reasoning_list.append(ReasoningCheck(**r))
+                elif isinstance(r, ReasoningCheck):
+                    reasoning_list.append(r)
+
+    # 2. Check case details
+    if not reasoning_list and case_details and case_details.get("reasoning"):
+        for r in case_details["reasoning"]:
+            if isinstance(r, dict):
+                reasoning_list.append(ReasoningCheck(**r))
+            elif isinstance(r, ReasoningCheck):
+                reasoning_list.append(r)
+
+    # 3. Fallback mock reasoning generator based on query
+    if not reasoning_list:
+        inc_type = case_details.get("incident_type", "") if case_details else ""
+        if not inc_type:
+            c_lower = content.lower()
+            if "instagram" in c_lower or "hack" in c_lower:
+                inc_type = "instagram_hacked"
+            elif "whatsapp" in c_lower or "sim" in c_lower:
+                inc_type = "whatsapp_compromised"
+            elif "payment" in c_lower or "screenshot" in c_lower or "money" in c_lower:
+                inc_type = "fake_payment_fraud"
+            elif "legal" in c_lower or "threat" in c_lower:
+                inc_type = "legal_threat"
+            else:
+                inc_type = "general_security"
+                
+        raw_r = generate_reasoning_for_incident(inc_type, content)
+        reasoning_list = [ReasoningCheck(**r) for r in raw_r]
+
+    return reasoning_list
+
 def extract_structured_card(content: str, tools_used: list[dict], case_details: Optional[dict] = None) -> StructuredCard:
-    # Check if recovery plan or analysis tools were used
     recovery_plan = None
     analysis = None
     for tu in tools_used:
@@ -31,7 +72,6 @@ def extract_structured_card(content: str, tools_used: list[dict], case_details: 
         elif tu.get("name") == "analyze_incident":
             analysis = tu.get("result")
 
-    # If case exists and has recovery_plan, use that
     if not recovery_plan and case_details and case_details.get("recovery_plan"):
         recovery_plan = case_details["recovery_plan"]
 
@@ -47,7 +87,6 @@ def extract_structured_card(content: str, tools_used: list[dict], case_details: 
         recommended_actions = recovery_plan.get("immediate_actions", [])
         prevention_tips = recovery_plan.get("prevention_tips", [])
     else:
-        # Default smart structured steps
         recommended_actions = [
             "Check official platform notification emails for unauthorized changes",
             "Freeze linked payment methods and alert key customer contacts",
@@ -63,11 +102,14 @@ def extract_structured_card(content: str, tools_used: list[dict], case_details: 
         "Potential credential compromise or fraudulent transaction pattern detected on social commerce channel."
     )
 
+    reasoning = extract_reasoning(tools_used, case_details, content)
+
     return StructuredCard(
         risk_level=risk_level,
         situation_analysis=situation_analysis,
         recommended_actions=recommended_actions[:4],
-        prevention_tips=prevention_tips[:3]
+        prevention_tips=prevention_tips[:3],
+        reasoning=reasoning
     )
 
 async def run_agent_loop(
@@ -75,7 +117,6 @@ async def run_agent_loop(
     case_id: Optional[str] = None,
     context: Optional[dict[str, Any]] = None
 ) -> ChatResponse:
-    # 1. Check 10-minute cache for identical request
     cache_key = {
         "case_id": case_id,
         "messages": [{"role": m.role, "content": m.content} for m in messages[-4:]]
@@ -85,7 +126,6 @@ async def run_agent_loop(
         logger.info(f"Cache hit for request (case_id={case_id})")
         return ChatResponse(**cached)
 
-    # 2. Case context augmentation
     case_details = None
     case_context_str = ""
     if case_id:
@@ -100,14 +140,9 @@ async def run_agent_loop(
             )
 
     full_system_prompt = SYSTEM_PROMPT + case_context_str
-
-    # 3. Available MCP tools
     tools = mcp_client.get_tool_definitions()
-
-    # 4. Convert ChatMessage list
     msg_dicts = [{"role": m.role, "content": m.content} for m in messages]
 
-    # 5. Agent loop step 1: Call LLM
     initial_llm_response = await llm_provider.chat(
         messages=msg_dicts,
         tools=tools,
@@ -116,7 +151,6 @@ async def run_agent_loop(
 
     tools_used: list[dict[str, Any]] = []
     
-    # 6. Execute tool calls if returned by LLM
     if initial_llm_response.tool_calls:
         for tc in initial_llm_response.tool_calls:
             try:
@@ -139,7 +173,6 @@ async def run_agent_loop(
     final_answer = initial_llm_response.content
     final_severity = "medium"
     
-    # Determine severity
     if case_details and "severity" in case_details:
         final_severity = case_details["severity"]
     for tu in tools_used:
@@ -147,7 +180,8 @@ async def run_agent_loop(
         if isinstance(res, dict) and "severity" in res:
             final_severity = res["severity"]
 
-    # 7. Update case turns if case_id provided
+    reasoning = extract_reasoning(tools_used, case_details, final_answer)
+
     if case_id and case_details and "error" not in case_details:
         turns = case_details.get("turns", [])
         last_user = messages[-1] if messages else None
@@ -164,9 +198,13 @@ async def run_agent_loop(
             "timestamp": None,
             "source": "advisor"
         })
-        tool_update_case(case_id, {"turns": turns})
+        tool_update_case(case_id, {
+            "turns": turns,
+            "reasoning": [r.dict() for r in reasoning]
+        })
 
     structured_card = extract_structured_card(final_answer, tools_used, case_details)
+    structured_card.reasoning = reasoning
 
     response_payload = ChatResponse(
         answer=final_answer,
@@ -175,10 +213,9 @@ async def run_agent_loop(
         tools_used=tools_used,
         provider=initial_llm_response.provider_name,
         is_fallback=initial_llm_response.is_fallback,
-        structured_card=structured_card
+        structured_card=structured_card,
+        reasoning=reasoning
     )
 
-    # Cache response for 10 minutes (600s)
     request_cache.set(cache_key, response_payload.dict())
-
     return response_payload

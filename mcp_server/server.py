@@ -12,6 +12,7 @@ from mcp_server.tools import (
     tool_update_case,
     tool_analyze_incident,
     tool_generate_recovery_plan,
+    tool_check_payment_screenshot,
     tool_score_business,
     TOOL_DEFINITIONS
 )
@@ -37,6 +38,7 @@ TOOL_REGISTRY = {
     "update_case": tool_update_case,
     "analyze_incident": tool_analyze_incident,
     "generate_recovery_plan": tool_generate_recovery_plan,
+    "check_payment_screenshot": tool_check_payment_screenshot,
     "score_business": tool_score_business,
 }
 

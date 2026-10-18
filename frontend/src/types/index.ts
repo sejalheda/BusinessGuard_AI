@@ -1,4 +1,14 @@
+export interface ReasoningCheck {
+  check: string;
+  evidence: string;
+  confidence: 'High' | 'Medium' | 'Low';
+  tool: string;
+}
+
 export interface RecoveryPlan {
+  first_hour?: string[];
+  first_24h?: string[];
+  first_week?: string[];
   immediate_actions: string[];
   plan_24h: string[];
   evidence_checklist: string[];
@@ -10,6 +20,7 @@ export interface StructuredCard {
   situation_analysis: string;
   recommended_actions: string[];
   prevention_tips: string[];
+  reasoning?: ReasoningCheck[];
 }
 
 export interface CaseTurn {
@@ -26,12 +37,14 @@ export interface CaseItem {
   status: 'open' | 'in_progress' | 'resolved';
   title: string;
   description?: string;
-  source: 'alexa' | 'web' | 'advisor' | 'emergency_button';
+  source: 'alexa' | 'web' | 'advisor' | 'emergency_button' | 'payment_checker';
   created_at: string;
   updated_at: string;
   answers?: Record<string, any>;
   turns: CaseTurn[];
   recovery_plan?: RecoveryPlan;
+  completed_steps?: string[];
+  reasoning?: ReasoningCheck[];
   metadata?: Record<string, any>;
 }
 
@@ -43,6 +56,17 @@ export interface ChatMessage {
   source?: string;
   tools_used?: any[];
   structured_card?: StructuredCard;
+  reasoning?: ReasoningCheck[];
+}
+
+export interface PaymentCheckResult {
+  risk_level: 'High Risk' | 'Medium Risk' | 'Low Risk';
+  risk_score: number;
+  warning_signs: string[];
+  bank_checklist: string[];
+  disclaimer: string;
+  suggested_incident_type: string;
+  reasoning: ReasoningCheck[];
 }
 
 export interface AuditAnswers {

@@ -51,7 +51,7 @@ def list_cases(
     cases = []
     for r in rows:
         c = dict(r)
-        for field in ["answers", "turns", "recovery_plan", "metadata"]:
+        for field in ["answers", "turns", "recovery_plan", "metadata", "reasoning", "completed_steps"]:
             if c.get(field):
                 try:
                     c[field] = json.loads(c[field])
